@@ -1,99 +1,196 @@
 import { useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
 import { PitchDetector } from "pitchy";
+import LivePitch from "./LivePitch.jsx";
+import { midiToHz, hzToMidi, percentDiff } from "../music/pitchUtils.js";
 
-const midiToHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const median = (arr) => {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+};
 
 export default function LessonControls({ targetMidi = [], onResult }) {
   const [recording, setRecording] = useState(false);
-  const micRef = useRef(null);
+  const recordingRef = useRef(false);          // <-- mirrors recording for async loops
+  const [liveHz, setLiveHz] = useState(0);
+  const [guideTone, setGuideTone] = useState(true); 
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const acRef = useRef(null);
+  const streamRef = useRef(null);
+
+  const isSecure =
+    location.protocol === "https:" || location.hostname === "localhost";
+
+  function setRecordingSafe(val) {
+    recordingRef.current = val;
+    setRecording(val);
+  }
 
   async function handleListen() {
     await Tone.start();
     const synth = new Tone.Synth().toDestination();
+    // Use Tone's Frequency helper to convert MIDI -> note names
     for (const m of targetMidi) {
-      synth.triggerAttackRelease(midiToHz(m), "8n");
+      setCurrentIdx(m); 
+      const note = Tone.Frequency(m, "midi").toNote();
+      synth.triggerAttackRelease(note, "8n");
       await sleep(450);
     }
   }
 
+  async function playCountInAndNote(hz, dur = 0.45) {
+    await Tone.start();
+    const click = new Tone.MembraneSynth().toDestination();
+    const synth = new Tone.Synth().toDestination();
+    click.triggerAttackRelease("A3", "16n");
+    await sleep(250);
+    if (guideTone) {synth.triggerAttackRelease(hz, dur);}
+    await sleep(dur * 1000 + 100);
+  }
+
   async function handleRecord() {
-    // super-simple reference implementation (captures steady pitch snapshots)
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioContext.createMediaStreamSource(stream);
-    const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 2048;
-    source.connect(analyser);
-
-    const detector = PitchDetector.forFloat32Array(analyser.fftSize);
-    const input = new Float32Array(detector.inputLength);
-    const sampleRate = audioContext.sampleRate;
-
-    setRecording(true);
-    const detected = [];
-
-    let noteIdx = 0;
-    const collectFor = async (ms) =>
-      new Promise((resolve) => setTimeout(resolve, ms));
-
-    // naive loop: listen ~400ms per expected note
-    while (recording && noteIdx < targetMidi.length) {
-      const start = performance.now();
-      const buckets = [];
-      while (performance.now() - start < 380) {
-        analyser.getFloatTimeDomainData(input);
-        const [pitch, clarity] = detector.findPitch(input, sampleRate);
-        if (clarity > 0.95 && pitch > 50 && pitch < 2000) {
-          buckets.push(pitch);
-        }
-        await collectFor(16);
-      }
-      const avg =
-        buckets.reduce((a, b) => a + b, 0) / Math.max(buckets.length, 1);
-      detected.push(avg || 0);
-      noteIdx += 1;
-      await collectFor(40);
+    if (!isSecure) {
+      alert("Recording requires HTTPS (or localhost). Open the HTTPS URL.");
+      return;
     }
 
-    setRecording(false);
-    stream.getTracks().forEach((t) => t.stop());
-    audioContext.close();
+    try {
+      await Tone.start();
 
-    const toMidi = (hz) => (hz ? Math.round(69 + 12 * Math.log2(hz / 440)) : 0);
-    const sungMidi = detected.map(toMidi);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false },
+        video: false,
+      });
+      streamRef.current = stream;
 
-    const results = targetMidi.map((m, i) => ({
-      target: m,
-      heard: sungMidi[i] || 0,
-      correct: Math.abs((sungMidi[i] || 0) - m) <= 0, // exact match; relax if you like
-    }));
-    onResult?.(results);
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      acRef.current = ac;
+
+      const source = ac.createMediaStreamSource(stream);
+      const analyser = ac.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+
+      const detector = PitchDetector.forFloat32Array(analyser.fftSize);
+      const buf = new Float32Array(detector.inputLength);
+      const sr = ac.sampleRate;
+
+      const results = [];
+      setRecordingSafe(true);
+
+      for (let i = 0; i < targetMidi.length && recordingRef.current; i++) {
+        setCurrentIdx(i);
+        const targetHz = midiToHz(targetMidi[i]);
+        await playCountInAndNote(targetHz);
+
+        const frames = [];
+        const start = performance.now();
+        while (performance.now() - start < 450 && recordingRef.current) {
+          analyser.getFloatTimeDomainData(buf);
+          const [hz, clarity] = detector.findPitch(buf, sr);
+          if (clarity > 0.95 && hz > 50 && hz < 2000) {
+            frames.push(hz);
+            setLiveHz(hz);
+          }
+          await new Promise((r) => requestAnimationFrame(r));
+        }
+
+        const hz = median(frames);
+        const heardMidi = hz ? Math.round(hzToMidi(hz)) : 0;
+        const percent = hz ? percentDiff(hz, targetHz) : 9999;
+        const within = Math.abs(percent) <= 5;
+
+        results.push({
+        target: targetMidi[i],
+        targetHz: Math.round(targetHz),
+        heardHz: Math.round(hz || 0),
+        heard: heardMidi,
+         percent: Math.round(percent * 100) / 100, // two decimals
+        correct: !!hz && within,
+      });
+
+        await sleep(120);
+      }
+
+      setRecordingSafe(false);
+      setLiveHz(0);
+      stream.getTracks().forEach((t) => t.stop());
+      await ac.close();
+
+      onResult?.(results);
+    } catch (err) {
+      console.error(err);
+      setRecordingSafe(false);
+      setLiveHz(0);
+      try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+      try { await acRef.current?.close(); } catch {}
+      let msg = "Could not access microphone.";
+      if (err?.name === "NotAllowedError") msg = "Microphone permission denied.";
+      if (err?.name === "NotFoundError") msg = "No microphone found.";
+      if (/secure|https/i.test(err?.message || "")) msg = "Recording requires HTTPS (or localhost).";
+      alert(msg);
+    }
   }
 
   function handleReset() {
-    setRecording(false);
+    setRecordingSafe(false);
+    setLiveHz(0);
+    try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+    try { acRef.current?.close(); } catch {}
     onResult?.([]);
   }
 
-  useEffect(() => () => setRecording(false), []);
+  useEffect(() => {
+    return () => {
+      setRecordingSafe(false);
+      try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+      try { acRef.current?.close(); } catch {}
+    };
+  }, []);
 
   return (
-    <div className="flex gap-3">
-      <button className="btn bg-blue-600 text-white" onClick={handleListen}>
-        ▶︎ Listen
-      </button>
-      <button
-        className="btn bg-green-600 text-white"
-        onClick={handleRecord}
-        disabled={recording}
-      >
-        🎙️ Record
-      </button>
-      <button className="btn btn-ghost" onClick={handleReset}>
-        ⟲ Reset
-      </button>
+    <div className="flex flex-col items-center gap-3">
+      <div className="flex gap-3">
+        <button className="btn bg-blue-600 text-white" onClick={handleListen}>
+          ▶︎ Listen
+        </button>
+        <button
+          className="btn bg-green-600 text-white"
+          onClick={handleRecord}
+          disabled={recording || !isSecure}
+          title={!isSecure ? "Requires HTTPS or localhost" : ""}
+        >
+          🎙️ {recording ? "Recording…" : "Record"}
+        </button>
+        <button className="btn btn-ghost" onClick={handleReset}>
+          ⟲ Reset
+        </button>
+        <button
+          className={`btn ${guideTone ? "bg-purple-600 text-white" : "btn-ghost"}`}
+          onClick={() => setGuideTone(!guideTone)}
+        >
+          🎵 Guide Tone {guideTone ? "On" : "Off"}
+        </button>        
+      </div>
+
+      + <LivePitch
+   hz={liveHz}
+    targetHz={targetMidi.length ? midiToHz(targetMidi[currentIdx]) : 0}
+    targetLabel={
+    targetMidi.length
+    ? Tone.Frequency(targetMidi[currentIdx], "midi").toNote()
+    : ""
+    }
+    />
+
+      {!isSecure && (
+        <div className="text-xs text-red-600">
+          Recording disabled: open the HTTPS URL to enable the mic.
+        </div>
+      )}
     </div>
   );
 }

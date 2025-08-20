@@ -1,80 +1,84 @@
-import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import ProgressBar from "../components/ProgressBar.jsx";
-import MusicStaff from "../components/MusicStaff.jsx";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import LessonControls from "../components/LessonControls.jsx";
 import PitchAccuracy from "../components/PitchAccuracy.jsx";
-import { lessons } from "../music/lessonData.js";
+import MusicStaff from "../components/MusicStaff.jsx";
+import { lessons, getNextLessonId } from "../music/lessonData.js";
 import { useUserStore } from "../store/useUserStore.js";
 
 export default function Lesson() {
-  const { lessonId } = useParams();
-  const nav = useNavigate();
-  const lesson = lessons[lessonId];
+  
+  const { lessonId } = useParams(); // route like /lesson/:lessonId
+  const navigate = useNavigate();
 
-  const [results, setResults] = useState([]);
-  const { setProgress } = useUserStore();
+  const currentLessonId = lessonId || "major-scale-c";
+  const lesson = useMemo(() => lessons[currentLessonId], [currentLessonId]);
 
-  if (!lesson) {
-    return <div className="p-6 text-red-600">Lesson not found.</div>;
-  }
+  // hold results here
+    const [results, setResults] = useState([]);
+    const setProgress = useUserStore((s) => s.setProgress);
 
-  const correct = results.filter((r) => r.correct).length;
-  const total = results.length;
-  const pct = total ? Math.round((correct / total) * 100) : 0;
+  // Save accuracy to Zustand whenever results arrive
+  useEffect(() => {
+    if (!results.length || !lesson) return;
+    const correct = results.filter((r) => r.correct).length;
+    const total = results.length;
+    const accuracy = Math.round((correct / total) * 100);
+    setProgress(lesson.id, { correct, total, accuracy }); // e.g. {correct:3,total:5,accuracy:60}
+  }, [results, lesson, setProgress]);
 
-  function handleFinish() {
-    setProgress(lessonId, { correct, total });
-    nav(`/results/${lessonId}`);
-  }
+// Next lesson id (null if last)
+  const nextId = getNextLessonId(currentLessonId);
+
+  if (!lesson) return <div className="p-6">Lesson not found.</div>;
+
+
 
   return (
-    <div className="mx-auto max-w-3xl px-4 space-y-6">
-      {/* Header with title + progress */}
-      <div className="card p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-lg font-semibold">{lesson.title}</div>
-            <div className="text-sm text-gray-500">{lesson.subtitle}</div>
-          </div>
-          <div className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-1">
-            Exercise 1 of 5
-          </div>
-        </div>
-        <div className="mt-3">
-          <ProgressBar value={pct} />
-        </div>
-      </div>
+    <div className="p-6 flex flex-col gap-6 items-center">
+      <h1 className="text-2xl font-bold">{lesson.title}</h1>
+      {lesson.subtitle && <p className="text-gray-600">{lesson.subtitle}</p>}
 
-      {/* Melody to sing */}
-      <div className="card p-4">
-        <div className="mb-3 text-center font-medium">Sing this melody</div>
-        <p className="text-center text-sm text-gray-600 mb-4">
-          Listen first, then record yourself singing
-        </p>
-        <MusicStaff midi={lesson.targetMidi} />
-      </div>
+   
+      <MusicStaff midi={lesson.targetMidi} />
 
-      {/* Controls */}
-      <div className="flex justify-center gap-4">
-        <LessonControls targetMidi={lesson.targetMidi} onResult={setResults} />
-      </div>
+      {/* Controls trigger listen/record and pass results up */}
+      <LessonControls
+        targetMidi={lesson.targetMidi}
+        onResult={setResults}
+      />
 
-      {/* Pitch Accuracy */}
       {results.length > 0 && (
-        <PitchAccuracy results={results} />
-      )}
+        <>
+          <PitchAccuracy results={results} />
+          <div className="flex gap-3">
+            <button
+              className="btn btn-ghost"
+              onClick={() => setResults([])}
+              title="Try again"
+            >
+              ↺ Try Again
+            </button>
 
-      {/* Finish Button */}
-      {results.length > 0 && (
-        <div className="flex justify-center">
-          <button
-            onClick={handleFinish}
-            className="btn btn-primary px-6"
-          >
-            Finish Lesson
-          </button>
+            <button
+              className="btn bg-blue-600 text-white disabled:opacity-50"
+              disabled={!nextId}
+              onClick={() => {
+                setResults([]);
+                if (nextId) navigate(`/lesson/${nextId}`);
+              }}
+              title={nextId ? "Go to next lesson" : "You're on the last lesson"}
+            >
+              ➜ Next Lesson
+            </button>
+            <button
+            className="btn bg-gray-600 text-white"
+            onClick={() => navigate("/home")}
+            >
+            ⬅ Return Home
+            </button>
         </div>
+        </>
       )}
     </div>
   );

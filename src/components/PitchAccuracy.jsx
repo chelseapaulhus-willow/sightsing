@@ -1,25 +1,30 @@
-export default function PitchAccuracy({ results = [] }) {
-  const correct = results.filter((r) => r.correct).length;
-  const total = results.length || 0;
+// components/PitchAccuracy.jsx
+export default function PitchAccuracy({ results }) {
+  if (!results?.length) return null;
+
+  const correctCount = results.filter(r => r.correct).length;
+  const total = results.length;
 
   return (
-    <div className="card p-4">
-      <div className="mb-2 text-sm font-medium text-gray-700">Pitch Accuracy</div>
-      <div className="flex gap-3">
-        {results.map((r, i) => (
+    <div className="p-4 border rounded-xl bg-white shadow flex flex-col items-center gap-3">
+      <h2 className="font-semibold">Pitch Accuracy</h2>
+
+      <div className="flex gap-2">
+        {results.map((r, idx) => (
           <div
-            key={i}
-            className={`h-10 w-10 rounded-full ring-2 flex items-center justify-center ${
-              r.correct ? "bg-green-500/10 ring-green-500" : "bg-red-500/10 ring-red-500"
+            key={idx}
+            className={`px-3 py-2 rounded-lg border text-sm ${
+              r.correct ? "border-green-600 text-green-600" : "border-red-600 text-red-600"
             }`}
-            title={`Target ${r.target} • Heard ${r.heard}`}
           >
-            {r.correct ? "✓" : "•"}
+            {r.heardHz} Hz<br />
+            <span className="text-gray-500 text-xs">→ {r.targetHz} Hz</span>
           </div>
         ))}
       </div>
-      <div className="mt-3 text-sm text-gray-600">
-        {total ? Math.round((correct / total) * 100) : 0}% accurate ({correct}/{total})
+
+      <div className="text-sm text-gray-700">
+        {Math.round((correctCount / total) * 100)}% accurate ({correctCount}/{total}) within ±5%
       </div>
     </div>
   );
