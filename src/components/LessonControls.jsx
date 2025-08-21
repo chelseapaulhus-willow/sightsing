@@ -11,7 +11,11 @@ const median = (arr) => {
   const mid = Math.floor(s.length / 2);
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 };
-
+const isSecure =
+  location.protocol === "https:" ||
+  location.hostname === "localhost" ||
+  location.protocol === "capacitor:";
+  
 export default function LessonControls({ targetMidi = [], onResult }) {
   const [recording, setRecording] = useState(false);
   const recordingRef = useRef(false);          // <-- mirrors recording for async loops
