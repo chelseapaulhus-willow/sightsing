@@ -17,4 +17,8 @@ export default defineConfig({
       port: 5173,
     },
   },
+  base: "./",
+  build: {
+    outDir: "dist",   // <- must match webDir
+  },
 })
