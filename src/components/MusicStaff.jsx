@@ -17,7 +17,6 @@ export default function MusicStaff({ midi = [], activeIndex = -1, phase = "" }) 
       return;
     }
 
-    // --- visual styles ---
     const baseFill = "#111827";   // slate-900
     const baseStroke = "#111827";
     const listenFill = "#10b981"; // emerald-500
@@ -25,7 +24,7 @@ export default function MusicStaff({ midi = [], activeIndex = -1, phase = "" }) 
     const highlightStroke = "#111827";
 
     // Set up SVG
-    const width = 560;
+    const width = 560; // Keep it wide to force scroll
     const height = 160;
     const renderer = new Renderer(host, Renderer.Backends.SVG);
     renderer.resize(width, height);
@@ -38,29 +37,22 @@ export default function MusicStaff({ midi = [], activeIndex = -1, phase = "" }) 
     stave.addTimeSignature(time);
     stave.setContext(context).draw();
 
-    // MIDI -> "c/4"
     const names = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"];
     const keyOf = (m) => `${names[m % 12]}/${Math.floor(m / 12) - 1}`;
 
-    // Build notes (quarter notes) + per-note style
     const notes = midi.map((m, i) => {
       const n = new StaveNote({ keys: [keyOf(m)], duration: "q" });
-
-      // default style
       n.setStyle({ fillStyle: baseFill, strokeStyle: baseStroke });
 
-      // highlight the active note
       if (i === activeIndex) {
         const fillStyle = phase === "record" ? recordFill : listenFill;
         n.setStyle({ fillStyle, strokeStyle: highlightStroke });
-        // make it pop a little
         n.setRenderStyle({ shadowBlur: 6, shadowColor: fillStyle });
       }
 
       return n;
     });
 
-    // Voice (SOFT mode)
     const voice = new Voice({ time });
     voice.setMode(Voice.Mode.SOFT);
     voice.addTickables(notes);
@@ -73,7 +65,11 @@ export default function MusicStaff({ midi = [], activeIndex = -1, phase = "" }) 
         host.innerHTML = "";
       } catch {}
     };
-  }, [midi, activeIndex, phase]); // <-- re-render when index/phase changes
+  }, [midi, activeIndex, phase]);
 
-  return <div ref={ref} />;
+  return (
+    <div style={{ overflowX: "auto", width: "100%" }}>
+      <div ref={ref} style={{ width: "560px" }} />
+    </div>
+  );
 }

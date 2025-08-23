@@ -256,6 +256,107 @@ export const lessonGroups = {
     "melody-call-response",
   ],
 };
+export const themes = [
+  {
+    id: "pitch-path",
+    title: "Pitch Path",
+    color: "from-indigo-500 to-blue-500",
+    subThemes: [
+      {
+        id: "foundations",
+        title: "Foundations",
+        lessonIds: [
+          "major-scale-c",
+          "minor-scale-c",
+          "major-c-full",
+          "harmonic-minor-c",
+          "melodic-minor-c",
+          "pentachord-g",
+          "pentachord-f",
+        ],
+      },
+      {
+        id: "intervals",
+        title: "Intervals",
+        lessonIds: [
+          "int-major-third",
+          "int-minor-third",
+          "int-perfect-fourth",
+          "int-perfect-fifth",
+          "int-major-sixth",
+          "int-octave",
+          "int-minor-second",
+          "int-tritone",
+          "int-major-seventh",
+        ],
+      },
+      {
+        id: "patterns-melodies",
+        title: "Patterns & Melodies",
+        lessonIds: [
+          "pattern-domisolmido",
+          "pattern-doredodo",
+          "melody-step-skip",
+          "melody-simple-1",
+          "melody-call-response",
+        ],
+      },
+      {
+        id: "arpeggios-keys",
+        title: "Arpeggios & Key Centers",
+        lessonIds: [
+          "arp-c-major",
+          "arp-a-minor",
+          "arp-g-major",
+          "roots-i-iv-v-i-c",
+          "major-d-full",
+          "major-f-full",
+          "minor-a-full",
+          "desc-tetrachord-c",
+          "chromatic-neighbors-e",
+        ],
+      },
+    ],
+  },
+
+  {
+    id: "rhythm-road",
+    title: "Rhythm Road",
+    color: "from-emerald-500 to-teal-500",
+    locked: true,
+    subThemes: [
+      {
+        id: "note-values",
+        title: "Note Values",
+        lessonIds: [], // e.g. quarter, half, eighth, sixteenth
+      },
+      {
+        id: "syncopation-rests",
+        title: "Syncopation & Rests",
+        lessonIds: [],
+      },
+    ],
+  },
+
+  {
+    id: "harmony-trail",
+    title: "Harmony Trail",
+    color: "from-fuchsia-500 to-purple-500",
+    locked: true,
+    subThemes: [
+      {
+        id: "combined-patterns",
+        title: "Pitch + Rhythm",
+        lessonIds: [],
+      },
+      {
+        id: "sight-reading",
+        title: "Sight-Reading Challenges",
+        lessonIds: [],
+      },
+    ],
+  },
+];
 
 // If you still need a flat order for “Next Lesson”
 export const lessonOrder = [

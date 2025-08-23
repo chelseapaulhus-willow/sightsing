@@ -20,13 +20,30 @@ function Stars({ percent = 0 }) {
   );
 }
 
+function RankBadge() {
+  // These selectors won’t crash if xp/getRank aren’t in the store yet.
+  const xp = useUserStore((s) => s.xp ?? 0);
+  const getRank = useUserStore((s) => s.getRank?.bind?.(s));
+  const rank = getRank ? getRank() : "Busker"; // default rank if helper not present
+
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs text-indigo-700">
+      <span>🎖️ Rank:</span>
+      <span className="font-semibold">{rank}</span>
+      <span className="opacity-70">•</span>
+      <span className="tabular-nums">{xp} XP</span>
+    </div>
+  );
+}
+
 export default function Results() {
   const { lessonId } = useParams();
   const nav = useNavigate();
   const lesson = lessons[lessonId];
 
-  const { progress } = useUserStore.getState(); // read once for this render
-  const stats = progress[lessonId];
+  // read-once snapshot is fine for this summary page
+  const { progress } = useUserStore.getState();
+  const stats = progress?.[lessonId];
 
   if (!lesson) {
     return (
@@ -62,6 +79,8 @@ export default function Results() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6">
       <div className="card p-6 text-center">
+        <div className="mb-3"><RankBadge /></div>
+
         <div className="text-5xl mb-2">🎉</div>
         <h1 className="text-2xl font-bold">Lesson Complete</h1>
         <p className="text-gray-600">{lesson.title}</p>
@@ -94,6 +113,7 @@ export default function Results() {
           <button className="btn btn-primary" onClick={() => nav(`/lesson/${lessonId}`)}>
             Review Lesson
           </button>
+          {/* If you later add “Next unlocked lesson” logic, add a button here. */}
           <Link className="btn btn-ghost" to="/home">
             Back to Home
           </Link>

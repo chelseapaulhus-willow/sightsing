@@ -15,7 +15,7 @@ const isSecure =
   location.protocol === "https:" ||
   location.hostname === "localhost" ||
   location.protocol === "capacitor:";
-  
+
 export default function LessonControls({ targetMidi = [], onResult }) {
   const [recording, setRecording] = useState(false);
   const recordingRef = useRef(false);          // <-- mirrors recording for async loops
@@ -24,9 +24,20 @@ export default function LessonControls({ targetMidi = [], onResult }) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const acRef = useRef(null);
   const streamRef = useRef(null);
+  const synthRef = useRef(null);
 
-  const isSecure =
-    location.protocol === "https:" || location.hostname === "localhost";
+  useEffect(() => {
+    synthRef.current = new Tone.Synth({
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.01, decay: 0.05, sustain: 0.4, release: 0.2 },
+    }).toDestination();
+    // slightly louder than default; adjust to taste
+    Tone.Destination.volume.value = -6;
+    return () => {
+      synthRef.current?.dispose();
+      synthRef.current = null;
+    };
+ }, []);
 
   function setRecordingSafe(val) {
     recordingRef.current = val;
@@ -34,14 +45,17 @@ export default function LessonControls({ targetMidi = [], onResult }) {
   }
 
   async function handleListen() {
-    await Tone.start();
-    const synth = new Tone.Synth().toDestination();
-    // Use Tone's Frequency helper to convert MIDI -> note names
-    for (const m of targetMidi) {
-      setCurrentIdx(m); 
-      const note = Tone.Frequency(m, "midi").toNote();
-      synth.triggerAttackRelease(note, "8n");
-      await sleep(450);
+        await Tone.start();
+    await Tone.getContext().resume();
+    Tone.Destination.mute = false; // just in case something muted it elsewhere
+    // (2) play using the persistent synth
+    const synth = synthRef.current;
+    for (let i = 0; i < targetMidi.length; i++) {
+      setCurrentIdx(i);
+      // use frequency directly; it’s bulletproof across browsers
+      const freq = Tone.Frequency(targetMidi[i], "midi").toFrequency();
+      synth.triggerAttackRelease(freq, 0.5); // longer than "8n" for reliability
+      await sleep(600);
     }
   }
 
@@ -180,7 +194,7 @@ export default function LessonControls({ targetMidi = [], onResult }) {
         </button>        
       </div>
 
-      + <LivePitch
+       <LivePitch
    hz={liveHz}
     targetHz={targetMidi.length ? midiToHz(targetMidi[currentIdx]) : 0}
     targetLabel={
