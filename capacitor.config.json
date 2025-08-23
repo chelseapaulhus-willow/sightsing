@@ -2,9 +2,9 @@
   "appId": "com.willowlabworks.sightsing",
   "appName": "SightSing",
   "webDir": "dist",
-  "server": {
-    "url": "http://192.168.1.174:5173",
-    "cleartext": true,
-    "allowNavigation": ["192.168.1.174"]
-  }
-}
+//   "server": {
+//     "url": "http://192.168.1.174:5173",
+//     "cleartext": true,
+//     "allowNavigation": ["192.168.1.174"]
+//   }
+ }

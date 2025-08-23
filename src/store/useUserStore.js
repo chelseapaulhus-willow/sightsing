@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { curriculum } from "../music/curriculum.js";
+import { themes } from "../music/lessonData.js";
 
 // rank thresholds (tweak freely)
 const RANKS = [
@@ -19,13 +19,15 @@ const rankForXp = (xp) => {
 const subThemeKey = (themeId, subId) => `${themeId}:${subId}`;
 
 const flattenLessons = () => {
-  const map = {};
-  curriculum.themes.forEach((t) =>
-    t.subThemes.forEach((s) =>
-      s.lessons.forEach((L) => (map[L.id] = { themeId: t.id, subId: s.id }))
-    )
+   const map = {};
+   themes.forEach((t) =>
+     t.subThemes.forEach((s) =>
+       s.lessonIds.forEach((lessonId) => {
+         map[lessonId] = { themeId: t.id, subId: s.id };
+       })
+     )
   );
-  return map;
+   return map;
 };
 const LESSON_TO_PARENT = flattenLessons();
 
@@ -33,9 +35,7 @@ export const useUserStore = create((set, get) => ({
   streak: 7,
   xp: 0,
   progress: {
-    // lessons: { [lessonId]: { correct, total, passed } }
     lessons: {},
-    // subThemes: { [themeId:subId]: { complete: boolean } }
     subThemes: {},
   },
 
@@ -45,7 +45,7 @@ export const useUserStore = create((set, get) => ({
   },
 
   isSubThemeUnlocked(themeId, subId) {
-    const theme = curriculum.themes.find((t) => t.id === themeId);
+    const theme = themes.find((t) => t.id === themeId);
     if (!theme) return false;
     const idx = theme.subThemes.findIndex((s) => s.id === subId);
     if (idx === -1) return false;
@@ -80,11 +80,13 @@ export const useUserStore = create((set, get) => ({
     const parent = LESSON_TO_PARENT[lessonId];
     if (!parent) return;
 
-    const theme = curriculum.themes.find((t) => t.id === parent.themeId);
+    const theme = themes.find((t) => t.id === parent.themeId);
     const sub = theme?.subThemes.find((st) => st.id === parent.subId);
     if (!sub) return;
 
-    const allPassed = sub.lessons.every((L) => get().progress.lessons[L.id]?.passed);
+    const allPassed = sub.lessonIds.every(
+   (lid) => get().progress.lessons[lid]?.passed
+  );
     if (allPassed) {
       const key = subThemeKey(parent.themeId, parent.subId);
       set((s) => ({

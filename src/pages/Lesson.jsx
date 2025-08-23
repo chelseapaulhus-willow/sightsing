@@ -16,7 +16,7 @@ export default function Lesson() {
 
   // hold results here
     const [results, setResults] = useState([]);
-    const setProgress = useUserStore((s) => s.setProgress);
+    const recordResult = useUserStore((s) => s.recordResult);
 
   // Save accuracy to Zustand whenever results arrive
   useEffect(() => {
@@ -24,8 +24,8 @@ export default function Lesson() {
     const correct = results.filter((r) => r.correct).length;
     const total = results.length;
     const accuracy = Math.round((correct / total) * 100);
-    setProgress(lesson.id, { correct, total, accuracy }); // e.g. {correct:3,total:5,accuracy:60}
-  }, [results, lesson, setProgress]);
+    recordResult(lesson.id, { correct, total }); // e.g. {correct:3,total:5,accuracy:60}
+  }, [results, lesson, recordResult]);
 
 // Next lesson id (null if last)
   const nextId = getNextLessonId(currentLessonId);
