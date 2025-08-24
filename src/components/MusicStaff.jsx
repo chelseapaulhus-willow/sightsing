@@ -63,7 +63,9 @@ export default function MusicStaff({ midi = [], activeIndex = -1, phase = "" }) 
     return () => {
       try {
         host.innerHTML = "";
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     };
   }, [midi, activeIndex, phase]);
 

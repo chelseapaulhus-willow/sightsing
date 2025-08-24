@@ -43,7 +43,7 @@ export default function Results() {
 
   // read-once snapshot is fine for this summary page
   const { progress } = useUserStore.getState();
-  const stats = progress?.[lessonId];
+  const stats = progress?.lessons?.[lessonId];
 
   if (!lesson) {
     return (
@@ -73,8 +73,8 @@ export default function Results() {
     );
   }
 
-  const { correct, total } = stats;
-  const percent = Math.round((correct / total) * 100);
+  const { correct, total, accuracy } = stats;
+  const percent = accuracy ?? Math.round((correct / total) * 100);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6">
