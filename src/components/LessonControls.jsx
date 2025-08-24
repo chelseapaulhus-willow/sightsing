@@ -143,8 +143,8 @@ export default function LessonControls({ targetMidi = [], onResult }) {
       console.error(err);
       setRecordingSafe(false);
       setLiveHz(0);
-      try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
-      try { await acRef.current?.close(); } catch {}
+      try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+      try { await acRef.current?.close(); } catch { /* ignore */ }
       let msg = "Could not access microphone.";
       if (err?.name === "NotAllowedError") msg = "Microphone permission denied.";
       if (err?.name === "NotFoundError") msg = "No microphone found.";
@@ -156,16 +156,16 @@ export default function LessonControls({ targetMidi = [], onResult }) {
   function handleReset() {
     setRecordingSafe(false);
     setLiveHz(0);
-    try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
-    try { acRef.current?.close(); } catch {}
+    try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+    try { acRef.current?.close(); } catch { /* ignore */ }
     onResult?.([]);
   }
 
   useEffect(() => {
     return () => {
       setRecordingSafe(false);
-      try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
-      try { acRef.current?.close(); } catch {}
+      try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+      try { acRef.current?.close(); } catch { /* ignore */ }
     };
   }, []);
 

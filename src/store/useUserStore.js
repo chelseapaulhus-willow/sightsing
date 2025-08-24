@@ -64,13 +64,14 @@ export const useUserStore = create((set, get) => ({
   // call with e.g. recordResult("pitch-maj3", { correct: 3, total: 3, passCutoff: 0.6 })
   recordResult(lessonId, { correct, total, passCutoff = 0.6 }) {
     const passed = total > 0 && correct / total >= passCutoff;
+    const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
 
     set((s) => ({
       progress: {
         ...s.progress,
         lessons: {
           ...s.progress.lessons,
-          [lessonId]: { correct, total, passed },
+          [lessonId]: { correct, total, passed, accuracy },
         },
       },
       xp: s.xp + correct * 10 + (passed ? 20 : 0), // simple XP formula

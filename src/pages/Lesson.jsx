@@ -23,7 +23,6 @@ export default function Lesson() {
     if (!results.length || !lesson) return;
     const correct = results.filter((r) => r.correct).length;
     const total = results.length;
-    const accuracy = Math.round((correct / total) * 100);
     recordResult(lesson.id, { correct, total }); // e.g. {correct:3,total:5,accuracy:60}
   }, [results, lesson, recordResult]);
 

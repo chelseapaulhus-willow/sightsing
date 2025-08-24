@@ -7,7 +7,7 @@ const PASS_CUTOFF = 60; // percent needed to count a lesson as "passed"
 
 export default function Dashboard() {
   // assuming your store returns the whole object
-  const { streak, progress = {} } = useUserStore();
+  const { streak, progress = { lessons: {}, subThemes: {} } } = useUserStore();
 
   return (
     <div className="mx-auto max-w-4xl px-4">
@@ -69,8 +69,7 @@ export default function Dashboard() {
                     <ul className="mt-3 text-sm text-gray-700 space-y-1">
                       {sub.lessonIds.map((id) => {
                         const l = lessons[id];
-                        const p = progress[id];
-                        const acc = Math.round(p?.accuracy ?? 0);
+                        const acc = lessonAccuracy(progress, id);
                         const passed = acc >= PASS_CUTOFF;
                         return (
                           <li key={id} className="flex items-center justify-between">
@@ -104,16 +103,19 @@ function isSubThemeUnlocked(theme, subIdx, progress) {
 /** A sub-theme is complete if ALL its lessons have accuracy >= PASS_CUTOFF. */
 function isSubThemeComplete(sub, progress) {
   if (!sub.lessonIds.length) return false;
-  return sub.lessonIds.every((id) => {
-    const acc = progress[id]?.accuracy ?? 0;
-    return acc >= PASS_CUTOFF;
-  });
+  return sub.lessonIds.every((id) => lessonAccuracy(progress, id) >= PASS_CUTOFF);
 }
 
 /** Average percent across lessons in a sub-theme (0 if empty). */
 function subProgress(sub, progress) {
   if (!sub.lessonIds.length) return 0;
-  const vals = sub.lessonIds.map((id) => progress[id]?.accuracy ?? 0);
+  const vals = sub.lessonIds.map((id) => lessonAccuracy(progress, id));
   const sum = vals.reduce((a, b) => a + b, 0);
   return Math.max(0, Math.min(100, sum / vals.length));
+}
+
+function lessonAccuracy(progress, id) {
+  const stats = progress?.lessons?.[id];
+  if (!stats || !stats.total) return 0;
+  return stats.accuracy ?? Math.round((stats.correct / stats.total) * 100);
 }
