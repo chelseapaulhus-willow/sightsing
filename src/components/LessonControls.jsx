@@ -3,6 +3,7 @@ import * as Tone from "tone";
 import { PitchDetector } from "pitchy";
 import LivePitch from "./LivePitch.jsx";
 import { midiToHz, hzToMidi, percentDiff } from "../music/pitchUtils.js";
+import { SpeakerRoute } from '../capacitor/SpeakerRoute.ts';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const median = (arr) => {
@@ -45,6 +46,9 @@ export default function LessonControls({ targetMidi = [], onResult }) {
   }
 
   async function handleListen() {
+      try {
+    // Ensure we’re on the right route for current device state
+    await SpeakerRoute.applyPreferredRoute();
         await Tone.start();
     await Tone.getContext().resume();
     Tone.Destination.mute = false; // just in case something muted it elsewhere
@@ -57,6 +61,9 @@ export default function LessonControls({ targetMidi = [], onResult }) {
       synth.triggerAttackRelease(freq, 0.5); // longer than "8n" for reliability
       await sleep(600);
     }
+     } catch (e) {
+    console.warn('Route apply failed', e);
+  }
   }
 
   async function playCountInAndNote(hz, dur = 0.45) {

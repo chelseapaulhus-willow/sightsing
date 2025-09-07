@@ -1,59 +1,141 @@
 import UIKit
+import AVFAudio
 import Capacitor
-import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
+  var window: UIWindow?
 
-    var window: UIWindow?
+  func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+  ) -> Bool {
 
-    func application(_ application: UIApplication,
-                   didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-    do {
-      let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playAndRecord,
-                              mode: .measurement,
-                              options: [.allowBluetooth, .allowBluetoothA2DP, .mixWithOthers, .defaultToSpeaker])
-      try session.setActive(true)
-    } catch {
-      print("Audio session error: \(error)")
-    }
+    configureAudioSession()
+    applyPreferredRoute()                  // set the right route at launch
+    observeRouteChanges()                  // keep it up-to-date if AirPods connect/disconnect
     return true
   }
+}
 
-    func applicationWillResignActive(_ application: UIApplication) {
-        // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-        // Use this method to pause ongoing tasks, disable timers, and invalidate graphics rendering callbacks. Games should use this method to pause the game.
+@objc(SpeakerRoutePlugin)
+public class SpeakerRoutePlugin: CAPPlugin {
+
+  // MARK: - JS API
+  // call from JS: SpeakerRoute.applyPreferredRoute()
+  @objc func applyPreferredRoute(_ call: CAPPluginCall) {
+    do {
+      try ensureSessionConfigured()
+      try setPreferredRoute()
+      call.resolve([
+        "outputs": AVAudioSession.sharedInstance().currentRoute.outputs.map { ["type": $0.portType.rawValue, "name": $0.portName] }
+      ])
+    } catch {
+      call.reject("Failed to apply route: \(error.localizedDescription)")
     }
+  }
 
-    func applicationDidEnterBackground(_ application: UIApplication) {
-        // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
-        // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
+  // Optional: query if external output is connected
+  @objc func isExternalConnected(_ call: CAPPluginCall) {
+    call.resolve(["connected": externalOutputConnected()])
+  }
+
+  // MARK: - Routing logic (mirrors what we discussed)
+
+  private func ensureSessionConfigured() throws {
+    let session = AVAudioSession.sharedInstance()
+    // Configure category once; safe to call repeatedly
+    try session.setCategory(
+      .playAndRecord,
+      mode: .measurement,
+      options: [.allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
+    )
+    try session.setActive(true, options: [])
+  }
+
+  private func setPreferredRoute() throws {
+    let session = AVAudioSession.sharedInstance()
+    if externalOutputConnected() {
+      try session.overrideOutputAudioPort(.none)     // keep AirPods/headphones/etc.
+    } else {
+      try session.overrideOutputAudioPort(.speaker)  // phone loudspeaker
     }
+  }
 
-    func applicationWillEnterForeground(_ application: UIApplication) {
-        // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
+  private func externalOutputConnected() -> Bool {
+    let outputs = AVAudioSession.sharedInstance().currentRoute.outputs.map { $0.portType }
+    var externalTypes: Set<AVAudioSession.Port> = [
+      .bluetoothA2DP, .bluetoothHFP, .bluetoothLE,
+      .headphones, .headsetMic,
+      .airPlay, .carAudio
+    ]
+    return outputs.contains { externalTypes.contains($0) }
+  }
+}
+
+// MARK: - Audio routing
+extension AppDelegate {
+
+  /// Configure a session that supports mic + BT devices.
+  func configureAudioSession() {
+    let session = AVAudioSession.sharedInstance()
+    do {
+      try session.setCategory(
+        .playAndRecord,
+        mode: .measurement,                // good for pitch analysis; use .default if you prefer
+        options: [
+          .allowBluetooth,
+          .allowBluetoothA2DP,             // AirPods / A2DP
+          .mixWithOthers                   // optional
+        ]
+      )
+      try session.setActive(true)
+    } catch {
+      print("Audio session setup failed:", error)
     }
+  }
 
-    func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+  /// Return true if any external output (AirPods, BT, wired, AirPlay, Car) is active.
+  func isExternalOutputConnected() -> Bool {
+    let outputs = AVAudioSession.sharedInstance().currentRoute.outputs.map { $0.portType }
+    let externalTypes: Set<AVAudioSession.Port> = [
+      .bluetoothA2DP, .bluetoothHFP, .bluetoothLE,
+      .headphones, .headsetMic,
+      .airPlay, .carAudio
+    ]
+    return outputs.contains { externalTypes.contains($0) }
+  }
+
+  /// Force speaker only when there’s no external output.
+  func applyPreferredRoute(tag: String = "applyPreferredRoute") {
+    let session = AVAudioSession.sharedInstance()
+    do {
+      if isExternalOutputConnected() {
+        try session.overrideOutputAudioPort(.none)   // honor AirPods / external output
+      } else {
+        try session.overrideOutputAudioPort(.speaker) // phone speaker (not earpiece)
+      }
+      logAudioRoute(tag)
+    } catch {
+      print("Failed to apply preferred route:", error)
     }
+  }
 
-    func applicationWillTerminate(_ application: UIApplication) {
-        // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+  func observeRouteChanges() {
+    NotificationCenter.default.addObserver(
+      forName: AVAudioSession.routeChangeNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] note in
+      self?.applyPreferredRoute(tag: "routeChange")
     }
+  }
 
-    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-        // Called when the app was launched with a url. Feel free to add additional processing here,
-        // but if you want the App API to support tracking app url opens, make sure to keep this call
-        return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
-    }
-
-    func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
-        // Called when the app was launched with an activity, including Universal Links.
-        // Feel free to add additional processing here, but if you want the App API to support
-        // tracking app url opens, make sure to keep this call
-        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
-    }
-
+  func logAudioRoute(_ tag: String) {
+    let session = AVAudioSession.sharedInstance()
+    let outs = session.currentRoute.outputs
+      .map { "\($0.portType.rawValue): \($0.portName)" }
+      .joined(separator: ", ")
+    print("[AudioRoute \(tag)] -> \(outs)")
+  }
 }
